@@ -18,6 +18,7 @@ FACILITIES = {
     "OTTAWA": "92",
     "MONTREAL": "91",
     "TORONTO": "94",
+    "QUEBEC": "93",
 }
 
 def get_config(filename='config.json'):

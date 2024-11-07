@@ -94,9 +94,9 @@ class VisaScheduler:
         return None
 
     
-    def reschedule(self, date):
+    def reschedule(self, date, facility_id):
         print(f"    ✅ Found earlier date: {date}. Trying to reschedule...")
-        time = self.get_available_time(date)
+        time = self.get_available_time(date,facility_id)
 
         if not time:
             print(f"    ❌ No available time found for {date}")
@@ -147,7 +147,7 @@ if __name__ == "__main__":
                 print(f"🧐 [{facility}] :Checking for earlier date ...")
                 date = scheduler.get_earlier_date(facility_id)
                 if date:
-                    rescheduled = scheduler.reschedule(date)
+                    rescheduled = scheduler.reschedule(date, facility_id)
                     if rescheduled:
                         print(f"Rescheduled successfully for {facility} at {date}!")
                         break
