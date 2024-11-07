@@ -1,4 +1,5 @@
 import time
+import atexit
 from datetime import datetime
 import argparse
 import requests
@@ -129,6 +130,8 @@ def ensure_working_hours():
         return True
     return False
 
+def save_log():
+    logger.dump(None)
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Reschedule visa appointment with the provided configuration')
@@ -143,7 +146,9 @@ if __name__ == "__main__":
     count = 0
     max_times = args.max_times
 
-    while count < max_times:
+    atexit.register(save_log)
+
+    while ensure_working_hours and  count < max_times:
 
         try:
 
@@ -177,8 +182,7 @@ if __name__ == "__main__":
             time.sleep(COOLDOWN_TIME)
         finally:
             count += 1
-
-    logger.dump(None)
+    save_log()
 
     
 
