@@ -1,3 +1,4 @@
 config.ini
 *.json
 *.log
+*.html

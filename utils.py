@@ -160,16 +160,13 @@ class SchedulerUtil:
     def is_earlier(self, date):
         return datetime.datetime.strptime(date, '%Y-%m-%d') < datetime.datetime.strptime(self.config["date_before"], '%Y-%m-%d')
     
-    def build_reschedule_payload(self, date, time):
+    def build_reschedule_payload(self,facility_id, date, time):
 
-        encoding = self.driver.find_element(By.NAME, 'utf8').get_attribute('value')
         token = self.driver.find_element(By.NAME, 'authenticity_token').get_attribute('value')
         confirmed_limit_message = self.driver.find_element(By.NAME, 'confirmed_limit_message').get_attribute('value')
         use_consulate_appointment_capacity = self.driver.find_element(By.NAME, 'use_consulate_appointment_capacity').get_attribute('value')
-        facility_id = self.config['facility_id']
 
         return {
-            "utf8": encoding,
             "authenticity_token": token,
             "confirmed_limit_message": confirmed_limit_message,
             "use_consulate_appointment_capacity": use_consulate_appointment_capacity,

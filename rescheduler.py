@@ -103,17 +103,32 @@ class VisaScheduler:
             return False
         
         url = self.urls.get_appointment_url()
-        payload = self.util.build_reschedule_payload(date, time)
+        payload = self.util.build_reschedule_payload(facility_id, date, time)
         headers = self.util.get_headers(url)
+
+        headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8"
+
+        print(f"Rescheduling for {date} {time}")
+        print(f"Payload: {payload}")
+        print(f"Headers: {headers}\n")
 
         r = requests.post(url, headers=headers, data=payload)
 
-        if r.status_code == 200 and (r.text.find('Successfully Scheduled') != -1):
+        if r.status_code == 200 and (r.text.find('successfully scheduled') != -1):
             print(f"✅ Rescheduled Successfully! {date} {time}")
             return True
         else:
+            now = datetime.now().strftime("%Y%m%d%H%M%S")
+            with open(f"./{facility_id}_failed_{now}.html", "w+") as f:
+                f.write(r.text)
             print(f"❌ Reschedule Failed. {date} {time}. [{r.text}]")
             return False
+        
+def ensure_working_hours():
+    start_time = datetime.now()
+    if start_time.hour >= 19 or start_time.hour <= 4:
+        return True
+    return False
 
 if __name__ == "__main__":
 
@@ -129,7 +144,8 @@ if __name__ == "__main__":
     count = 0
     max_times = args.max_times
 
-    while count < max_times:
+    while ensure_working_hours():
+
         try:
             start_time = datetime.now()
 
