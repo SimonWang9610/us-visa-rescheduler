@@ -4,6 +4,7 @@ import argparse
 import requests
 from utils import get_config, UrlConstructor, SchedulerUtil, COOLDOWN_TIME, FACILITIES
 
+from logger import logger
 class VisaScheduler:
     def __init__(self, config):
         self.urls = UrlConstructor(config)
@@ -26,7 +27,6 @@ class VisaScheduler:
         else:
             login_url = self.urls.get_login_url()
             self.util.prepare_login_form(login_url)
-            print("Login start...")
             self.util.fill_login_form(self.urls.get_appointment_url())
             self.token_expired = False
 
@@ -35,19 +35,18 @@ class VisaScheduler:
             return None
 
         url = self.urls.get_date_api_path(facility_id)
-        print("Querying available dates: ", url)
         referer = self.urls.get_appointment_url()
         headers = self.util.get_headers(referer, True, True)
 
         r = requests.get(url, headers=headers)
 
         if r.status_code == 401:
-            print("❌ Token expired. Login again...")
+            logger.red("Token expired. Login again...")
             self.token_expired = True
             return None
 
         if r.status_code != 200:
-            print(f"❌ Failed to get available dates, status code: {r.status_code}")
+            logger.red(f"Failed to get available dates, status code: {r.status_code}")
             return None
 
         data = r.json()
@@ -55,12 +54,14 @@ class VisaScheduler:
 
         for d in dates:
             date = d.get('date')
+            logger.blue(f"Checking date: {date}", 1)
             if self.util.is_earlier(date):
                 year, month, day = date.split('-')
                 if VisaScheduler.MY_CONDITION_DATE(year, month, day):
+                        logger.green(f"Found earlier date: {date}")
                         return date
             else:
-                print(f"    ❌ Date {date} not desired")
+                logger.red(f"later than [{self.util.date_before.strftime('%Y-%m-%d')}]", 2)
         return None
     
     def get_available_time(self, date, facility_id):
@@ -69,17 +70,16 @@ class VisaScheduler:
         
         url = self.urls.get_time_api_path(date, facility_id)
         referer = self.urls.get_appointment_url()
-        print("Querying available time slots: ", url)
         headers = self.util.get_headers(referer, True, True)
         r = requests.get(url, headers=headers)
 
         if r.status_code == 401:
-            print("❌ Token expired. Login again...")
+            logger.red("Token expired. Login again...")
             self.token_expired = True
             return None
 
         if r.status_code != 200:
-            print(f"❌ Failed to get available dates, status code: {r.status_code}")
+            logger.red(f"Failed to get available dates, status code: {r.status_code}")
             return None
 
         data = r.json()
@@ -88,18 +88,19 @@ class VisaScheduler:
         for t in available_times:
             hour, minute = t.split(":")
             if self.MY_CONDITION_TIME(hour, minute):
-                print(f"Available appointment time: {date} {t}")
+                logger.green(f"Available appointment time: {date} {t}")
                 return t
+            
+        logger.red(f"No available time found for {date}")
 
         return None
 
     
     def reschedule(self, date, facility_id):
-        print(f"    ✅ Found earlier date: {date}. Trying to reschedule...")
+        logger.green(f"Found date slot: {date}. Trying to reschedule...", 1)
         time = self.get_available_time(date,facility_id)
 
         if not time:
-            print(f"    ❌ No available time found for {date}")
             return False
         
         url = self.urls.get_appointment_url()
@@ -108,20 +109,18 @@ class VisaScheduler:
 
         headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8"
 
-        print(f"Rescheduling for {date} {time}")
-        print(f"Payload: {payload}")
-        print(f"Headers: {headers}\n")
+        logger.blue(f"Rescheduling for {date} {time}", 1)
 
         r = requests.post(url, headers=headers, data=payload)
 
         if r.status_code == 200 and (r.text.find('successfully scheduled') != -1):
-            print(f"✅ Rescheduled Successfully! {date} {time}")
+            logger.green(f"Rescheduled successfully for {date} {time}!")
             return True
         else:
             now = datetime.now().strftime("%Y%m%d%H%M%S")
             with open(f"./{facility_id}_failed_{now}.html", "w+") as f:
                 f.write(r.text)
-            print(f"❌ Reschedule Failed. {date} {time}. [{r.text}]")
+            logger.red(f"Failed to reschedule for {date} {time}. Check {facility_id}_failed_{now}.html")
             return False
         
 def ensure_working_hours():
@@ -135,7 +134,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Reschedule visa appointment with the provided configuration')
     parser.add_argument('--config', type=str, required=True, help='Path to the configuration file')
     parser.add_argument('--interval', type=int, default=60, help='seconds between two retries')
-    parser.add_argument('--max_times', type=int, default=60, help='maximum times to retry if not scheduled')
+    parser.add_argument('--max_times', type=int, default=70, help='maximum times to retry if not scheduled')
 
     args = parser.parse_args()
 
@@ -144,12 +143,11 @@ if __name__ == "__main__":
     count = 0
     max_times = args.max_times
 
-    while ensure_working_hours():
+    while count < max_times:
 
         try:
-            start_time = datetime.now()
 
-            print(f">>>>>>>>>>>>>> [START] {count+1} times {start_time} <<<<<<<<<<<")
+            logger.blue(f"-----[Retry {count+1}/{max_times}]-----")
             scheduler.login()
             time.sleep(2)
 
@@ -159,8 +157,8 @@ if __name__ == "__main__":
 
                 if rescheduled:
                     break
-
-                print(f"🧐 [{facility}] :Checking for earlier date ...")
+                
+                logger.blue(f"[{facility}] :Checking for date slots ...", 1)
                 date = scheduler.get_earlier_date(facility_id)
                 if date:
                     rescheduled = scheduler.reschedule(date, facility_id)
@@ -168,14 +166,10 @@ if __name__ == "__main__":
                         print(f"Rescheduled successfully for {facility} at {date}!")
                         break
                 else:
-                    print(f"    ❌ No earlier date found for {facility}.")
-
-            end_time = datetime.now()
-            diff = end_time - start_time
-            print(f">>>>>>>>>>>>>> [END] [spent {diff.seconds} seconds] <<<<<<<<<<<")
+                    logger.yellow(f"No earlier date slot found for {facility}.", 1)
             
             if not rescheduled and not scheduler.token_expired:
-                print(f"💩 No earlier date found. Retry after {args.interval} seconds...")
+                print(f"💩 No earlier date slots found. Retry after {args.interval} seconds...")
                 time.sleep(args.interval)
 
         except Exception as e:
@@ -184,4 +178,7 @@ if __name__ == "__main__":
         finally:
             count += 1
 
+    logger.dump(None)
+
+    
 

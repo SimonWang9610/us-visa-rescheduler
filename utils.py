@@ -1,6 +1,7 @@
 import time
 import datetime
 import json
+import re
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait as Wait
@@ -10,15 +11,15 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from webdriver_manager.firefox import GeckoDriverManager
 
+from logger import logger
+
 
 STEP_TIME = 0.5  # time between steps (interactions with forms): 0.5 seconds
 COOLDOWN_TIME = 60*60  # wait time when temporary banned (empty list): 60 minutes
 
 FACILITIES = {
     "OTTAWA": "92",
-    "MONTREAL": "91",
     "TORONTO": "94",
-    "QUEBEC": "93",
 }
 
 def get_config(filename='config.json'):
@@ -71,6 +72,7 @@ class SchedulerUtil:
         opts.add_argument("--headless")
         service = Service(GeckoDriverManager().install())
         self.driver = webdriver.Firefox(options=opts, service=service)
+        self.date_before = datetime.datetime.strptime(self.config["date_before"], '%Y-%m-%d')
 
     def prepare_login_form(self, url):
         self.driver.get(url)
@@ -79,14 +81,14 @@ class SchedulerUtil:
         a.click()
         time.sleep(STEP_TIME)
 
-        print("Login start...")
+        logger.blue("Filling login form")
         href = self.driver.find_element(By.XPATH, '//*[@id="header"]/nav/div[1]/div[1]/div[2]/div[1]/ul/li[3]/a')
     
         href.click()
         time.sleep(STEP_TIME)
         Wait(self.driver, 60).until(EC.presence_of_element_located((By.NAME, "commit")))
 
-        print("\tclick bounce")
+        logger.blue("clicking bounce button", 1)
         a = self.driver.find_element(By.XPATH, '//a[@class="down-arrow bounce"]')
         a.click()
         time.sleep(STEP_TIME)
@@ -103,8 +105,6 @@ class SchedulerUtil:
         return True
     
     def fill_login_form(self, redirect, waiting_time=60):
-            username = self.config["username"]
-            password = self.config["password"]
 
             user = self.driver.find_element(By.ID, 'user_email')
             user.send_keys(self.config["username"])
@@ -125,7 +125,7 @@ class SchedulerUtil:
             # print("\twaiting for continue appointment information")
             # Wait(self.driver, waiting_time).until(EC.presence_of_element_located((By.CLASS_NAME, 'consular-appt')))
 
-            print("Login successful!")
+            logger.green("Login successful")
 
             if redirect:
                 time.sleep(5)
@@ -149,16 +149,25 @@ class SchedulerUtil:
 
         return headers
     
+    def find_scheduled_date(self):
+        appointment_text = self.driver.find_element(By.CLASS_NAME, 'consular-appt').text
+        match = re.search(r"(\d{1,2} \w+, \d{4})", appointment_text)
+
+        if match:
+            scheduled_date = datetime.datetime.strptime(match.group(1), '%d %B, %Y')
+            self.date_before = scheduled_date
+
+    
     def go_to_page(self, url):
 
         current_url = self.driver.current_url
 
         if current_url != url:
-            print(f"Going to {url}")
+            logger.blue(f"Paging to [{url}]")
             self.driver.get(url)
     
     def is_earlier(self, date):
-        return datetime.datetime.strptime(date, '%Y-%m-%d') < datetime.datetime.strptime(self.config["date_before"], '%Y-%m-%d')
+        return datetime.datetime.strptime(date, '%Y-%m-%d') < self.date_before
     
     def build_reschedule_payload(self,facility_id, date, time):
 
@@ -174,4 +183,5 @@ class SchedulerUtil:
             "appointments[consulate_appointment][date]": date,
             "appointments[consulate_appointment][time]": time,
         }
+
 
