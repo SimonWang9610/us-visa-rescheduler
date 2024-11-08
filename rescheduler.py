@@ -55,14 +55,13 @@ class VisaScheduler:
 
         for d in dates:
             date = d.get('date')
-            logger.blue(f"Checking date: {date}", 1)
             if self.util.is_earlier(date):
+                logger.green(f"Found earlier date: {date}", 1)
                 year, month, day = date.split('-')
                 if VisaScheduler.MY_CONDITION_DATE(year, month, day):
-                        logger.green(f"Found earlier date: {date}")
                         return date
             else:
-                logger.red(f"later than [{self.util.date_before.strftime('%Y-%m-%d')}]", 2)
+                logger.red(f"[{date}] later than [{self.util.date_before.strftime('%Y-%m-%d')}]", 1)
         return None
     
     def get_available_time(self, date, facility_id):
