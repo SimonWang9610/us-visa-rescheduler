@@ -51,7 +51,7 @@ class VisaScheduler:
             return None
 
         data = r.json()
-        dates = data[:5]
+        dates = data[:10]
 
         for d in dates:
             date = d.get('date')
@@ -84,15 +84,18 @@ class VisaScheduler:
 
         data = r.json()
         available_times = data.get("available_times")[::-1]
+        logger.blue(f"Available times: {available_times}", 2)
 
-        for t in available_times:
+        if not available_times:
+            logger.red(f"No available time found for {date}", 2)
+            return None
+
+        for t in reversed(available_times):
             hour, minute = t.split(":")
             if self.MY_CONDITION_TIME(hour, minute):
-                logger.green(f"Available appointment time: {date} {t}")
+                logger.green(f"Available appointment time: {date} {t}", 2)
                 return t
             
-        logger.red(f"No available time found for {date}")
-
         return None
 
     
@@ -171,6 +174,9 @@ if __name__ == "__main__":
                         break
                 else:
                     logger.yellow(f"No earlier date slot found for {facility}.", 1)
+
+            if rescheduled:
+                break
             
             if not rescheduled and not scheduler.token_expired:
                 print(f"💩 No earlier date slots found. Retry after {args.interval} seconds...")

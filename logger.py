@@ -28,7 +28,7 @@ class Logger:
         path = filepath
 
         if not path:
-            path = f'./{datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")}.log'
+            path = f'./logs/{datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")}.log'
 
         with open(path, 'w+') as f:
             for message in self.messages:
